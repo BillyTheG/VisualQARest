@@ -1,0 +1,55 @@
+# First, add the API
+apiVersion: apps/v1
+# This will be the deployment setup
+kind: Deployment
+metadata:
+  # Name your Deployment here
+  name: ner-service-dep
+  labels:
+    # label your deployment
+    app: ner-service-app
+spec:
+  # The number of pods/replicas to run
+  replicas: 1            
+  selector:
+    matchLabels:
+    # selector to match the pod
+      app: ner-service-app  
+  template:
+    metadata:
+      labels:
+      # label your pod
+        app: ner-service-app  
+    spec:
+      containers:
+      # Add the container name for Kubernetes
+      - name: ner-service
+      # Add the local image name
+        image: ner_service
+        # never pull the image policy
+        imagePullPolicy: Never
+        ports:
+        # port for running the container
+        - containerPort: 8000
+---
+# First, add the Service API
+apiVersion: v1
+# This will be the Service setup
+kind: Service
+metadata:
+  # Your service name
+  name: ner-service-src 
+spec:
+  selector:
+    # selector that matches the pod
+    app: ner-service-app 
+  # type of service
+  type: LoadBalancer     
+  ports:
+  - protocol: TCP 
+    # port for exposing the service        
+    port: 8000
+    # portfor exposing the pod             
+    targetPort: 8000
+    # port for exposing the node       
+    nodePort: 31110
