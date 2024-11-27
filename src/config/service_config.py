@@ -41,16 +41,15 @@ class SpacyConfig(BaseModel):
 class ModelConfig(BaseModel):
     path: str
     binary: bool
-
+    type_model: str
 
 class ServiceConfig(BaseSettings):
     database: DataBaseConfig
-    spacy: SpacyConfig
     model: ModelConfig
 
     class Config:
         env_nested_delimiter = "__"
-        config_file = "../Resources/geo_reference.ini"
+        config_file = "Resources/geo_reference.ini"
 
         @classmethod
         def customise_sources(cls, init_settings, env_settings, file_secret_settings):

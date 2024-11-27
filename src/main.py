@@ -1,9 +1,11 @@
+import io
 import json
 import logging
 from typing import List
 
 import uvicorn
-from fastapi import FastAPI, UploadFile
+from PIL import Image
+from fastapi import FastAPI, UploadFile, File
 from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -11,18 +13,15 @@ from starlette.responses import JSONResponse, FileResponse
 from starlette.staticfiles import StaticFiles
 
 from config import ServiceConfig
-from connector import MariaDbConnector, PostGresConnector
-from service.NERService import NERService
+from connector import PostGresConnector
 
-app = FastAPI(title='GeoReferenceAI-Service IREC',
+from src.service.QAService import QAService
+
+app = FastAPI(title='VisualQARest',
               description='<img width="30%" height="30%" src="static/Title.png" alt="bear">\n\n '
-                          '*GRAI* (<b>G</b>eo <b>R</b>eference <b>A</b>rtifical <b>I</b>ntelligence) ist ein Dienst, der eine automatische Georeferenzierung für beliebige Text bereitstellt. \n\n Durch den Einsatz von SpaCy- und '
-                          'Word2Vec/FastText-Modellen\n ist der Service in der Lage, (geographische) Orte bzw. Entitäten aus Textpassagen zu extrahieren. Es wird eine Schnittstelle via REST angeboten. Siehe dazu unten \n\n'
-                          'Mithilfe der Endpoints können Sie einzelne Funktionen aufgreifen. Beispielanfragen sind angefügt über das Framework [Swagger](https://swagger.io/). *Hinweis*: Bitte verwenden Sie nur echte Entitäten vom Planeten Erde. \n\n'
-                          'Geoinformationen aus anderen Universen werden noch nicht angewendet. Bei Fragen wenden Sie sich bitte an [Hptm Bilal Günaydin](https://wiki.bundeswehr.org/display/~BilalGuenaydin) \n \n'
-                          'Link to Repo: [GIT](https://vgit.coi.air/SMArtIP/Svc.GeoReferenceAI)',
+                          'This app contains a Visual Answering Model and uses it per rest api',
               version="0.1")
-app.mount("/static", StaticFiles(directory="../static/"), name="static")
+app.mount("/static", StaticFiles(directory="static/"), name="static")
 
 service_config = ServiceConfig()
 
@@ -36,39 +35,29 @@ def init_database(config: ServiceConfig):
         port=config.database.port
     )
 
-    if config.database.driver == "mariadb":
-        return MariaDbConnector(driver="", **database_opts)
-    elif config.database.driver == "postgres":
+    if config.database.driver == "postgres":
         return PostGresConnector(driver="", **database_opts)
 
     raise Exception(f"Unknown database driver: {config.database.driver}")
 
 
-#database_connector = init_database(service_config)
-database_connector = None
-geo_service = NERService(config=service_config, connector=database_connector)
-# geo_service = None
+database_connector = init_database(service_config)
+#database_connector = None
+#geo_service = NERService(config=service_config, connector=database_connector)
+vqa_service = QAService(config=service_config, connector=database_connector)
 
 
 class MyText(BaseModel):
-    content: str = "The political row broke out on Sunday after Israel’s foreign ministry said the two countries’ " \
-                   "foreign ministers had met the previous week. The statement said Israel’s Cohen and Mangoush, " \
-                   "his Libyan counterpart in the " \
-                   "Tripoli-based administration, spoke at a meeting in Rome hosted by Italian foreign minister Antonio Tajani.. "
+    content: str = "What can you see in the picture? "
 
 
-@app.post("/ner", description="Returns a list of entities found within a text by SpaCy.",
-          openapi_extra={
-              "requestBody": {
-                  "content": {"application/json": {"schema": MyText.model_json_schema()}},
-                  "required": True,
-              },
-          }, tags=["NER"])
-async def ner(request: Request):
+@app.post("/vaq", description="Returns an answer based on  an image.", tags=["Visual Questioning"])
+async def vaq(message: str, file: UploadFile = File(...)):
     try:
-        message_string = await request.json()
-        message = dict(message_string)
-        result = geo_service.returns_all_entities(message['content'])
+        image = Image.open(file.file)
+
+        print("image consumed")
+        result = vqa_service.ask_question(message, image)
         return json.loads(json.dumps(result))
 
     except Exception as e:
